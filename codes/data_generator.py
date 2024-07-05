@@ -131,11 +131,11 @@ def create_room_data(file_name):
     data = course_data['numStudents']
 
     # Calculate histogram of course data
-    a, b = np.histogram(data)
+    a, b = np.histogram(data, bins=days_dict[file_name])
 
     # Adjust histogram data for room dataset
-    num_rooms = len(data)
-    room_counts = np.ceil(a * 10 / num_rooms).astype(int)  # Adjust room counts based on total data length
+    num_rooms = days_dict[file_name]
+    room_counts = np.ceil(a * num_rooms / sum(a)).astype(int)  # multiply by number of rooms and divide by course number to normalize 
     capacities = (np.ceil(b / 10) * 10)[1:].astype(int)  # Adjust bin edges for room capacities
 
     columns = ['RoomId', 'Capacity', 'computers', 'projector', 'whiteboard', 'internet', 'audio', 'printer', 'backup-power']
@@ -146,22 +146,23 @@ def create_room_data(file_name):
 
     # Populate room_df with rooms based on capacities and room_counts
     for i in range(len(capacities)):
-        for j in range(room_counts[i]):
-            # Assign facilities randomly, ensuring at least one room has all facilities
-            row = {
-                'RoomId': f'Room{room_id}',
-                'Capacity': capacities[i],
-                'computers': np.random.randint(0, 2) if j != 0 else 1,
-                'projector': np.random.randint(0, 2) if j != 0 else 1,
-                'whiteboard': np.random.randint(0, 2) if j != 0 else 1,
-                'internet': np.random.randint(0, 2) if j != 0 else 1,
-                'audio': np.random.randint(0, 2) if j != 0 else 1,
-                'printer': np.random.randint(0, 2) if j != 0 else 1,
-                'backup-power': np.random.randint(0, 2) if j != 0 else 1
-            }
-            # Append row to room_df
-            room_df = pd.concat([room_df, pd.DataFrame([row])], ignore_index=True)
-            room_id += 1  # Increment room ID
+        if room_counts[i]!=0:
+            for j in range(room_counts[i]):
+                # Assign facilities randomly, ensuring at least one room has all facilities
+                row = {
+                    'RoomId': f'Room{room_id}',
+                    'Capacity': capacities[i],
+                    'computers': np.random.choice([0, 1], p=[0.2, 0.8]) if j != 0 else 1,
+                    'projector': np.random.choice([0, 1], p=[0.2, 0.8]) if j != 0 else 1,
+                    'whiteboard': np.random.choice([0, 1], p=[0.2, 0.8]) if j != 0 else 1,
+                    'internet': np.random.choice([0, 1], p=[0.2, 0.8]) if j != 0 else 1,
+                    'audio': np.random.choice([0, 1], p=[0.2, 0.8]) if j != 0 else 1,
+                    'printer': np.random.choice([0, 1], p=[0.2, 0.8]) if j != 0 else 1,
+                    'backup-power': np.random.choice([0, 1], p=[0.2, 0.8]) if j != 0 else 1
+                }
+                # Append row to room_df
+                room_df = pd.concat([room_df, pd.DataFrame([row])], ignore_index=True)
+                room_id += 1  # Increment room ID
 
     
     output_folder = file_name_to_folder(file_name)
@@ -231,7 +232,7 @@ def create_times(file_name):
     
     # Save the processed data to CSV
     output_file = os.path.join(output_folder, 'times.csv')
-    df.to_csv(output_file)
+    df.to_csv(output_file, index = False)
     
     print(f"Processed times data saved to {output_file}")
     return df
@@ -308,8 +309,9 @@ def create_datetime_preference(file_name):
 
     # Create DataFrame for better readability (optional)
     preference_df = pd.DataFrame(random_preferences, 
-                                 index=[course_mapping], 
+                                 index=course_mapping, 
                                  columns=date_times)
+    preference_df.index.name = 'courseId'
 
     # Save the processed data to CSV
     output_folder = file_name_to_folder(file_name)

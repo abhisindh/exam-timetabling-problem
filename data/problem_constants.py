@@ -2,27 +2,30 @@ import pandas as pd
 import numpy as np
 import os
 
-directory = 'data'
-files = ['data/'+f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
+#===========================
+directory = 'hec-s-92'
+#==========================
+
+files = [f"{directory}/"+f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
 
 
 # Dataframes from each file
-date_df = pd.read_csv(files[0])
-course_df = pd.read_csv(files[1])
-room_df = pd.read_csv(files[4])
+date_df = pd.read_csv(files[1])
+course_df = pd.read_csv(files[0])
+room_df = pd.read_csv(files[3])
 student_df = pd.read_csv(files[5])
 time_df = pd.read_csv(files[6])
 
 
 # List of each variable
-date_list = date_df['Dates'].to_numpy()
-course_list = np.array(course_df['Course Code'])
+date_list = date_df['Date'].to_numpy()
+course_list = np.array(course_df['courseId'])
 numStudent_list = course_df['numStudents'].to_numpy()
 facility_list = course_df.columns[1:].to_numpy()
-room_list = np.array(room_df['Room'])
+room_list = np.array(room_df['RoomId'])
 capacity_list = room_df['Capacity'].to_numpy()
-student_list = np.array(student_df['Roll number'])
-time_list = np.array(time_df['Time-slot'])
+student_list = np.array(student_df['rollNum'])
+time_list = np.array(time_df['Time'])
 datetime_list = np.array([s1+' '+s2 for s1 in date_list for s2 in time_list])
 
 # Index dictionary of each variable
@@ -43,16 +46,16 @@ numFacility = len(facility_list)
 
 
 # Setting custom index
-student_df.set_index('Roll number', inplace=True) #
-room_df.set_index('Room', inplace=True)
-course_df.set_index('Course Code', inplace=True)
+student_df.set_index('rollNum', inplace=True) #
+room_df.set_index('RoomId', inplace=True)
+course_df.set_index('courseId', inplace=True)
 
 # Problem matrices
 c_f_matrix = course_df.drop(columns=['numStudents']).to_numpy() # Course-Facility  boolean matrix from dataset
 r_f_matrix = room_df.drop(columns=['Capacity']).to_numpy() # Room- Facility boolean matrix from dataset
 s_c_matrix = np.zeros((numStudents, numCourses)) # Student- Course boolean matrix from dataset
 for student in student_list:
-    courses = student_df.at[student, 'courses enrolled'].split()
+    courses = student_df.at[student, 'coursesEnrolled'].split()
     s_id = student_index[student]
     for course in courses:
         c_id = course_index[course]
