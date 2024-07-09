@@ -17,10 +17,6 @@ instance_list = ['car-s-91',
                  'ute-s-92',
                  'yor-f-83']
 
-
-
-
-
 data_folder = '../data'
 class Instance():
     def __init__(self, file_name):
@@ -104,7 +100,6 @@ class Instance():
         
         return self.c_r_facility & self.c_r_capacity
 
-
 class Timetable():
     
     def __init__(self, instance, r_a, d_a):
@@ -169,11 +164,80 @@ class Timetable():
                 "datetime" : [self.instance.dateTimeList[datetime] for datetime in self.d_a]
                 }
         return pd.DataFrame(data)
+    
+def create_timetable(instance, heuristic='conflict_count'):
+    numCourses = instance.numCourses
+    numDateTime = instance.numDateTime
+    numRooms = instance.numRooms
+    shuffledDatetimeList = np.random.permutation(np.arange(numDateTime))
+    
+    # Initialize assignments
+    d_a = np.full(numCourses, -1)
+    r_a = np.full(numCourses, -1)
+    r_d_capacity = np.tile(instance.capacityList, (numDateTime, 1))
+    
+    # Initialize course order based on heuristic
+    
+    if heuristic == 'conflict_count':
+        conflict_count = instance.conflict_boolean.sum(axis=1)
+        sorted_courses = np.argsort(conflict_count)[::-1]
+    elif heuristic == 'conflict_degree':
+        conflict_degree = instance.conflict_matrix.sum(axis=1)
+        sorted_courses = np.argsort(conflict_degree)[::-1]
+    else:
+        raise ValueError(f"Unknown heuristic: {heuristic}")
+
+    datetime_course = {dt: [] for dt in range(numDateTime)}
+    
+    # Assign courses to datetimes and rooms
+    for course in sorted_courses:
+        required_capacity = instance.numStudentsList[course]
+        
+        # Find available datetimes with no conflicts
+        available_datetimes = []
+        for dt in shuffledDatetimeList:
+            if all(not instance.conflict_boolean[course, other_course] for other_course in datetime_course[dt]):
+                available_datetimes.append(dt)
+        
+        if not available_datetimes:
+            return None, None
+
+        # Find available rooms for the selected datetime
+        room_assigned = False
+        for chosen_dt in available_datetimes:
+            available_rooms = [room for room in range(numRooms) 
+                               if instance.c_r_facility[course, room] and r_d_capacity[chosen_dt, room] >= required_capacity]
+            if available_rooms:
+                chosen_room = np.random.choice(available_rooms)
+                d_a[course] = chosen_dt
+                r_a[course] = chosen_room
+                r_d_capacity[chosen_dt, chosen_room] -= required_capacity
+                datetime_course[chosen_dt].append(course)
+                room_assigned = True
+                break
+        
+        if not room_assigned:
+            return None, None
+    
+    return r_a, d_a
+
+def create_population(instance, size=100, heuristic='conflict_count'):
+    population = []
+    for _ in tqdm(range(size)):
+        r_a = d_a = None
+        iteration = 0
+        while r_a is None and iteration < 1000:
+            r_a, d_a = create_timetable(instance, heuristic)
+            iteration+=1
+        timetable = Timetable(instance, r_a, d_a)
+        population.append(timetable)
+    return population
+
+
 
 if __name__ == '__main__':
-    instance1 = Instance(instance_list[1])
-    r_a = np.random.randint(low=0, high=instance1.numRooms, size=instance1.numCourses)
-    d_a = np.random.randint(low=0, high=instance1.numDateTime, size=instance1.numCourses)
-    timetable1= Timetable(instance1, r_a, d_a)
-    print(timetable1.penalty_dict)
+    instance = Instance(instance_list[1])
+    population = create_population(instance, 10, 'conflict_count')
+    for i in population:
+        print(i.penalty_dict)
 
