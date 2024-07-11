@@ -15,3 +15,5 @@
 /scripts/__pycache__
 /notebooks/__pycache__
 /data/__pycache__
+/data/.ipynb_checkpoints
+/notebooks/.ipynb_checkpoints
