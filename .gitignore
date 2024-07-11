@@ -12,3 +12,6 @@
 /data/ute-s-92
 /data/yor-f-83
 /.vscode
+/scripts/__pycache__
+/notebooks/__pycache__
+/data/__pycache__

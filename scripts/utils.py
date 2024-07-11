@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 from scipy.sparse import csr_matrix
+import copy
 
 instance_list = ['car-s-91',
                  'car-f-92',
@@ -28,6 +29,16 @@ class Instance():
         self.get_times()
         self.get_datetime_preference()
         self.get_student_data()
+        self.max_violation_dict = {"overlap violation" : (self.s_c_matrix.sum(axis=1)-1).sum(),
+                                   "capacity violation" : self.numRooms * self.numDateTime,
+                                    "facility violation" : self.numCourses* self.numRooms,
+                                   "proximity penalty" : np.triu(self.conflict_boolean, k=1).sum() * (2**5),
+                                   "date time penalty" : 2**5 * self.numCourses,
+                                   "room penalty" : 2**5 *self.numCourses
+                                    }
+        print(f"Created instance {file_name}.")
+        print(f"number of courses = {self.numCourses}, number of students = {self.numStudents}")
+        print(f"number of timeslots = {self.numDateTime}, number of rooms = {self.numRooms}")
         
     def get_room_data(self):
         self.room_df = pd.read_csv(f"{data_folder}/{self.file_name}/room_data.csv")
@@ -108,13 +119,16 @@ class Timetable():
         self.d_a = d_a
         self.get_instance_values()
         self.create_matrices()
-        self.penalty_dict = {"overlap penalty" : self.create_overlap_check().sum(),
-                             "capacity penalty" : self.create_capacity_check().sum(),
-                             "facility penalty" : self.create_facility_check().sum(),
+        self.penalty_dict = {"overlap violation" : self.create_overlap_check().sum(),
+                             "capacity violation" : self.create_capacity_check().sum(),
+                             "facility violation" : self.create_facility_check().sum(),
                              "proximity penalty" : self.create_proximity_matrix().sum(),
                              "date time penalty" : self.create_date_penalty_matrix().sum(),
                              "room penalty" : self.create_room_penalty_matrix().sum()
                              }
+        self.normalized_penalty = {name : self.penalty_dict[name]/ instance.max_violation_dict[name] for name in self.penalty_dict}
+        self.soft_penalty = sum(list(self.normalized_penalty.values())[3:])
+        self.hard_penalty = sum(list(self.normalized_penalty.values())[:3])
         
     def get_instance_values(self):
         self.numCourses = self.instance.numCourses
@@ -124,7 +138,7 @@ class Timetable():
     def create_matrices(self):
         self.c_d_matrix = np.eye(self.numDateTime, dtype=int)[self.d_a]
         self.c_r_matrix = np.eye(self.numRooms, dtype=int)[self.r_a]
-        self.s_d_matrix = np.dot(self.instance.s_c_matrix, self.c_d_matrix)
+        #self.s_d_matrix =  (csr_matrix(self.instance.s_c_matrix).dot(csr_matrix(self.c_d_matrix))).toarray()  #np.dot(self.instance.s_c_matrix, self.c_d_matrix) #self.s_c_sparse.T.dot(self.s_c_sparse).toarray()
         
         self.overlap_check = self.create_overlap_check()
         self.capacity_check = self.create_capacity_check()
@@ -132,17 +146,17 @@ class Timetable():
         self.proximity_matrix = self.create_proximity_matrix()
         
     def create_overlap_check(self):
-        return np.where(self.s_d_matrix > 1 , self.s_d_matrix-1, 0)
+        return ((np.dot(self.instance.conflict_boolean, self.c_d_matrix)-1) * self.c_d_matrix).sum(axis=1).astype(bool)
     
     def create_capacity_check(self):
         c_r_student = self.c_r_matrix * self.instance.numStudentsList[:,None] # in course-room binary matrix, change 1 to number of students writng that exma
-        r_d_student = np.dot(c_r_student.T, self.c_d_matrix)
+        r_d_student = (csr_matrix(c_r_student).T.dot(csr_matrix(self.c_d_matrix))).toarray()                            #np.dot(c_r_student.T, self.c_d_matrix)
         return (r_d_student > self.instance.capacityList[:,np.newaxis] ).astype(int)
     
     def create_facility_check(self):
         required_facility = self.instance.c_f_matrix
         available_facility = self.instance.r_f_matrix[self.r_a, :]
-        return (required_facility > available_facility).astype(int)
+        return (required_facility > available_facility).sum(axis=1).astype(bool)
 
     def create_proximity_matrix(timetable):
         # upper triangular matrix of size (numCourse x numCourse) that shows proximity of two courses if they have conflict
@@ -164,7 +178,6 @@ class Timetable():
                 "datetime" : [self.instance.dateTimeList[datetime] for datetime in self.d_a]
                 }
         return pd.DataFrame(data)
-    
 def create_timetable(instance, heuristic='conflict_count'):
     numCourses = instance.numCourses
     numDateTime = instance.numDateTime
@@ -233,11 +246,170 @@ def create_population(instance, size=100, heuristic='conflict_count'):
         population.append(timetable)
     return population
 
+def create_random_population(instance, size=100):
+    population = []
+    for _ in tqdm(range(size)):
+        d_a = np.random.randint(low=0, high=instance.numDateTime, size=instance.numCourses)
+        r_a = np.random.randint(low=0, high=instance.numRooms, size=instance.numCourses)
+        population.append(Timetable(instance, r_a, d_a))
+    return population
 
+def tournmanet_selection(population, pool_size, k=3):
+    population = np.array(population)
+    selected = []
+    for i in range(pool_size):
+        tournament_indices = np.random.choice(len(population), size=k, replace=False)
+        tournament = population[tournament_indices]
+        winner = min(tournament, key=lambda x: x.soft_penalty)
+        selected.append(winner)
+    return selected
+
+def crossover(parent1, parent2, crossover_prob = 0.8):
+    # if np.random.random() > crossover_prob:
+    #     return parent1, parent2
+    
+    instance = parent1.instance
+    numCourses = instance.numCourses
+    ra_1 = parent1.r_a
+    ra_2 = parent2.r_a
+    da_1 = parent1.d_a
+    da_2 = parent2.d_a
+
+    r_crossover = np.random.randint(1, numCourses)
+    ra_3 = np.concatenate((ra_1[:r_crossover], ra_2[r_crossover:]))
+    ra_4 = np.concatenate((ra_2[:r_crossover], ra_1[r_crossover:]))
+
+    d_crossover = np.random.randint(1, numCourses)
+    da_3 = np.concatenate((da_1[:d_crossover], da_2[d_crossover:]))
+    da_4 = np.concatenate((da_2[:d_crossover], da_1[d_crossover:]))
+
+    return Timetable(instance, ra_3, da_3), Timetable(instance, ra_4, da_4)
+
+def mutation(parent, mutation_rate = 0.5):
+    # room
+    instance = parent.instance
+    mutated_room = parent.r_a.copy()
+    random_numbers = np.random.rand(instance.numCourses)
+    mutate_mask = random_numbers < mutation_rate
+    mutated_room[mutate_mask] = np.random.randint(instance.numRooms, size = mutate_mask.sum())
+    #datetime
+    mutated_datetime = parent.d_a.copy()
+    random_numbers = np.random.rand(instance.numCourses)
+    mutate_mask = random_numbers < mutation_rate
+    mutated_datetime[mutate_mask] = np.random.randint(instance.numDateTime, size = mutate_mask.sum())
+
+    return Timetable(instance, mutated_room, mutated_datetime)
+
+def weighted_penalty(timetable, weight= 100):
+    return timetable.soft_penalty + timetable.hard_penalty*weight
+
+def euclidean_distance(sol1, sol2):
+    room_distance = np.sum((sol1.r_a - sol2.r_a)**2)
+    datetime_distance = np.sum((sol1.d_a - sol2.d_a)**2)
+    return np.sqrt(room_distance + datetime_distance)
+
+def repair(input_solution, feasible_solutions, curr_depth=0, verbose=False, best_donor = None, max_depth = 10):
+    instance = input_solution.instance
+    
+    print(verbose * f"Repairing: depth={curr_depth}, hard_penalty={input_solution.hard_penalty}\n", end='')
+    
+    if input_solution.hard_penalty == 0 or curr_depth > max_depth:
+        print(verbose * f"Returning solution: depth={curr_depth}, hard_penalty={input_solution.hard_penalty}\n", end='')
+        return input_solution
+    if best_donor is None:
+        best_donor = min(feasible_solutions, key=lambda sol: euclidean_distance(input_solution, sol))
+    print(verbose * f"Best donor selected: {best_donor}\n", end='')
+        
+    for i in range(instance.numRooms):
+        if input_solution.overlap_check[i] or input_solution.facility_check[i] or input_solution.capacity_check[input_solution.r_a[i], input_solution.d_a[i]]:
+            r_a_copy = input_solution.r_a[:]
+            d_a_copy = input_solution.d_a[:]
+            d_a_copy[i] = best_donor.d_a[i]  # exchange date with best donor
+            solution_copy = Timetable(instance, r_a_copy, d_a_copy)
+            
+            print(verbose * f"Trying date exchange: index={i}, donor date={best_donor.d_a[i]}\n", end='')
+            
+            if solution_copy.hard_penalty < input_solution.hard_penalty:  # check for reduction in hard penalty
+                print(verbose * f"Date exchange improved solution: index={i}, new hard_penalty={solution_copy.hard_penalty}\n", end='')
+                return repair(solution_copy, feasible_solutions, curr_depth+1, verbose, best_donor, max_depth=max_depth)
+            else:
+                r_a_copy[i] = best_donor.r_a[i]  # exchange room with best donor
+                solution_copy = Timetable(instance, r_a_copy, d_a_copy)
+                
+                print(verbose * f"Trying room exchange: index={i}, donor room={best_donor.r_a[i]}\n", end='')
+                
+                if solution_copy.hard_penalty < input_solution.hard_penalty:  # check for reduction in hard penalty
+                    print(verbose * f"Room exchange improved solution: index={i}, new hard_penalty={solution_copy.hard_penalty}\n", end='')
+                    return repair(solution_copy, feasible_solutions, curr_depth+1, verbose, best_donor, max_depth=max_depth)
+                else:
+                    d_a_copy[i] = input_solution.d_a[i]  # revert date back to original
+                    solution_copy = Timetable(instance, r_a_copy, d_a_copy)
+                    
+                    print(verbose * f"Reverting date: index={i}, original date={input_solution.d_a[i]}\n", end='')
+                    
+                    if solution_copy.hard_penalty < input_solution.hard_penalty:  # check for reduction in hard penalty
+                        print(verbose * f"Reversion improved solution: index={i}, new hard_penalty={solution_copy.hard_penalty}\n", end='')
+                        return repair(solution_copy, feasible_solutions, curr_depth+1, verbose, best_donor, max_depth=max_depth)
+                
+    print(verbose * f"No improvement found at depth {curr_depth}\n", end='')
+    return input_solution
+
+criteria = lambda sol : sol.soft_penalty 
+def genetic_algorithm(instance, initial_population, generations, pop_size, pool_size):
+    population = initial_population
+    
+    # Parameters
+    crossover_rate = 0.8
+    mutation_rate = 0.5
+    tournament_size = 5
+    elitism_count = 2
+
+    for generation in tqdm(range(generations+1)):
+        # Selection
+        mating_pool = tournmanet_selection(population, pool_size, tournament_size)
+        
+        # Crossover and Mutation
+        offsprings = []
+        for i in range(0, pool_size-1, 2):
+            parent1 = mating_pool[i]
+            parent2 = mating_pool[(i+1) % pool_size]
+            child1, child2 = crossover(parent1, parent2, crossover_rate)
+            
+            if np.random.rand() < mutation_rate:
+                child1 = mutation(child1, mutation_rate)
+            if np.random.rand() < mutation_rate:
+                child2 = mutation(child2, mutation_rate)
+            
+            if child1.hard_penalty:
+                child1 = repair(child1, population)
+            if child2.hard_penalty:
+                child2 = repair(child2, population)
+            
+            offsprings.extend([child1, child2])
+        
+        # Combine and Select Next Generation
+        combined_population = population + offsprings
+        combined_population = sorted(combined_population, key=criteria)
+        population = combined_population[:pop_size] #combined_population[:pop_size - elitism_count]
+        
+        # Add Elitism
+        # elites = combined_population[:elitism_count]
+        # population.extend(elites)
+        
+            
+        if criteria(population[0]) == criteria(population[-1]):
+            print(f"Generation {generation}: Best = {criteria(population[0])}, Worst = {criteria(population[-1])}")
+            break
+        
+        if generation % (generations//10) == 0 or generation==generations :
+            print(f"Generation {generation}: Best = {criteria(population[0])}, Worst = {criteria(population[-1])}")
+            
+    
+    return population
 
 if __name__ == '__main__':
-    instance = Instance(instance_list[1])
-    population = create_population(instance, 10, 'conflict_count')
-    for i in population:
-        print(i.penalty_dict)
-
+    instance1 = Instance(instance_list[1])
+    feasible_solutions = create_population(instance1,10)
+    
+    infeasible = crossover(feasible_solutions[0], feasible_solutions[1])[0]
+    repair(infeasible, feasible_solutions,verbose=True, max_depth=50)
