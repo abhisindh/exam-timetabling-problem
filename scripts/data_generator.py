@@ -13,15 +13,15 @@ days_dict = {
  'car-s-91': 18,
  'car-f-92': 16,
  'ear-f-83': 12,
- 'hec-s-92': 9,
+ 'hec-s-92': 11,
  'kfu-s-93': 10,
- 'lse-f-91': 9,
- 'pur-s-93': 21,
- 'rye-s-93': 12,
+ 'lse-f-91': 11,
+ 'pur-s-93': 23,
+ 'rye-s-93': 14,
  'sta-f-83': 7,
  'tre-s-92': 12,
  'uta-s-92': 18,
- 'ute-s-92': 5,
+ 'ute-s-92': 7,
  'yor-f-83': 11
 }
 
@@ -325,13 +325,16 @@ def create_datetime_preference(file_name):
 
     
 if __name__ == "__main__":
-    for instance in days_dict:
-        process_course_data(instance)
-        process_student_data(instance)
-        create_room_data(instance)
-        create_dates(instance)
-        create_times(instance)
-        create_room_preference(instance)
-        create_datetime_preference(instance)
+    #instance_list = ['car-s-91','car-f-92','ear-f-83', 'kfu-s-93', 'sta-f-83', 'tre-s-92', 'uta-s-92', 'yor-f-83']
+
+    # instance_list = ['hec-s-92', 'lse-f-91', 'pur-s-93', 'rye-s-93',   'ute-s-92']
+    # for instance in instance_list:
+    #     process_course_data(instance)
+    #     process_student_data(instance)
+    #     create_room_data(instance)
+    #     create_dates(instance)
+    #     create_times(instance)
+    #     create_room_preference(instance)
+    #     create_datetime_preference(instance)
         
-        
+    pass

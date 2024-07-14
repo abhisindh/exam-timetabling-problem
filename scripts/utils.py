@@ -3,6 +3,8 @@ import numpy as np
 from tqdm import tqdm
 from scipy.sparse import csr_matrix
 import copy
+import time
+import csv
 
 instance_list = ['car-s-91',
                  'car-f-92',
@@ -29,12 +31,12 @@ class Instance():
         self.get_times()
         self.get_datetime_preference()
         self.get_student_data()
-        self.max_violation_dict = {"overlap violation" : (self.s_c_matrix.sum(axis=1)-1).sum(),
-                                   "capacity violation" : self.numRooms * self.numDateTime,
-                                    "facility violation" : self.numCourses* self.numRooms,
-                                   "proximity penalty" : np.triu(self.conflict_boolean, k=1).sum() * (2**5),
-                                   "date time penalty" : 2**5 * self.numCourses,
-                                   "room penalty" : 2**5 *self.numCourses
+        self.max_violation_dict = {"overlap violation" : self.numCourses,
+                                    "capacity violation" : self.numRooms * self.numDateTime,
+                                    "facility violation" : self.numCourses,
+                                    "proximity penalty" : np.triu(self.conflict_boolean, k=1).sum() * (2**5),
+                                    "date time penalty" : 2**5 * self.numCourses,
+                                    "room penalty" : 2**5 *self.numCourses
                                     }
         print(f"Created instance {file_name}.")
         print(f"number of courses = {self.numCourses}, number of students = {self.numStudents}")
@@ -120,12 +122,12 @@ class Timetable():
         self.get_instance_values()
         self.create_matrices()
         self.penalty_dict = {"overlap violation" : self.create_overlap_check().sum(),
-                             "capacity violation" : self.create_capacity_check().sum(),
-                             "facility violation" : self.create_facility_check().sum(),
-                             "proximity penalty" : self.create_proximity_matrix().sum(),
-                             "date time penalty" : self.create_date_penalty_matrix().sum(),
-                             "room penalty" : self.create_room_penalty_matrix().sum()
-                             }
+                            "capacity violation" : self.create_capacity_check().sum(),
+                            "facility violation" : self.create_facility_check().sum(),
+                            "proximity penalty" : self.create_proximity_matrix().sum(),
+                            "date time penalty" : self.create_date_penalty_matrix().sum(),
+                            "room penalty" : self.create_room_penalty_matrix().sum()
+                            }
         self.normalized_penalty = {name : self.penalty_dict[name]/ instance.max_violation_dict[name] for name in self.penalty_dict}
         self.soft_penalty = sum(list(self.normalized_penalty.values())[3:])
         self.hard_penalty = sum(list(self.normalized_penalty.values())[:3])
@@ -163,7 +165,7 @@ class Timetable():
         tdayAssigned = timetable.instance.tDayList[timetable.d_a // timetable.instance.numTime]  # Calculate tday assignments
         diff_matrix = np.abs(tdayAssigned[:, None] - tdayAssigned)  # Calculate absolute differences
         proximity_matrix = np.triu(np.where(diff_matrix < 5, np.power(2, abs(5 - diff_matrix)), 0), k=1)  # Calculate proximity penalty
-        return proximity_matrix*timetable.instance.conflict_matrix
+        return proximity_matrix*timetable.instance.conflict_boolean
     
     def create_date_penalty_matrix(timetable):
         c_d_preference = timetable.c_d_matrix* timetable.instance.d_pref_matrix
@@ -178,6 +180,10 @@ class Timetable():
                 "datetime" : [self.instance.dateTimeList[datetime] for datetime in self.d_a]
                 }
         return pd.DataFrame(data)
+    def student_index_timetable(self, index):
+        print(f"Timetable for student with roll number {self.instance.studentList[index]} ")
+        return self.display()[self.instance.s_c_matrix[index].astype(bool)].sort_values(by=['datetime'])
+
 def create_timetable(instance, heuristic='conflict_count'):
     numCourses = instance.numCourses
     numDateTime = instance.numDateTime
@@ -408,8 +414,4 @@ def genetic_algorithm(instance, initial_population, generations, pop_size, pool_
     return population
 
 if __name__ == '__main__':
-    instance1 = Instance(instance_list[1])
-    feasible_solutions = create_population(instance1,10)
-    
-    infeasible = crossover(feasible_solutions[0], feasible_solutions[1])[0]
-    repair(infeasible, feasible_solutions,verbose=True, max_depth=50)
+   pass
