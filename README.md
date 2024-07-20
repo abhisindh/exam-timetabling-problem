@@ -2,6 +2,7 @@
 
 This project was done during my internship in Mahindra University, Hyderabad under the mentorship of Dr. Rakesh Prasad Badoni.
  ## Problem Statement
+ ![AI generated image of people trying to schedule exams](docs/images/timetabling.jpg)
  ```
  The problem is to create am optmized timetable using given data under the following costraints:
 

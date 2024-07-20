@@ -1,0 +1,13 @@
+RoomId,Capacity,computers,projector,whiteboard,internet,audio,printer,backup-power
+Room1,70,1,1,1,1,1,1,1
+Room2,70,1,0,1,0,1,1,1
+Room3,70,0,1,0,1,1,1,1
+Room4,70,0,0,1,1,1,1,0
+Room5,70,1,1,1,1,1,1,0
+Room6,140,1,1,1,1,1,1,1
+Room7,140,1,1,1,1,1,1,0
+Room8,210,1,1,1,1,1,1,1
+Room9,280,1,1,1,1,1,1,1
+Room10,350,1,1,1,1,1,1,1
+Room11,420,1,1,1,1,1,1,1
+Room12,490,1,1,1,1,1,1,1

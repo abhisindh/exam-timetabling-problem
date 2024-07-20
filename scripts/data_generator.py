@@ -327,14 +327,13 @@ def create_datetime_preference(file_name):
 if __name__ == "__main__":
     #instance_list = ['car-s-91','car-f-92','ear-f-83', 'kfu-s-93', 'sta-f-83', 'tre-s-92', 'uta-s-92', 'yor-f-83']
 
-    # instance_list = ['hec-s-92', 'lse-f-91', 'pur-s-93', 'rye-s-93',   'ute-s-92']
-    # for instance in instance_list:
-    #     process_course_data(instance)
-    #     process_student_data(instance)
-    #     create_room_data(instance)
-    #     create_dates(instance)
-    #     create_times(instance)
-    #     create_room_preference(instance)
-    #     create_datetime_preference(instance)
-        
-    pass
+    instance_list = ['pur-s-93']
+    for instance in instance_list:
+        process_course_data(instance)
+        process_student_data(instance)
+        create_room_data(instance)
+        create_dates(instance)
+        create_times(instance)
+        create_room_preference(instance)
+        create_datetime_preference(instance)
+

@@ -22,8 +22,9 @@ instance_list = ['car-s-91',
 
 data_folder = '../data'
 class Instance():
-    def __init__(self, file_name):
+    def __init__(self, file_name, data_folder = '../data'):
         self.file_name = file_name
+        self.data_folder = data_folder
         self.get_room_data()
         self.get_room_preference()
         self.get_course_data()
@@ -43,7 +44,7 @@ class Instance():
         print(f"number of timeslots = {self.numDateTime}, number of rooms = {self.numRooms}")
         
     def get_room_data(self):
-        self.room_df = pd.read_csv(f"{data_folder}/{self.file_name}/room_data.csv")
+        self.room_df = pd.read_csv(f"{self.data_folder}/{self.file_name}/room_data.csv")
         self.capacityList = self.room_df['Capacity'].to_numpy(int)
         self.roomList = self.room_df['RoomId'].to_numpy()
         self.numRooms = len(self.roomList)
@@ -51,11 +52,11 @@ class Instance():
         self.roomIndex = {room: idx for idx, room in enumerate(self.roomList)}
         
     def get_room_preference(self):
-        self.room_preference_df = pd.read_csv(f"{data_folder}/{self.file_name}/room_preference.csv")
+        self.room_preference_df = pd.read_csv(f"{self.data_folder}/{self.file_name}/room_preference.csv")
         self.r_pref_matrix = self.room_preference_df.drop(['courseId'], axis=1).to_numpy(int)
         
     def get_course_data(self):
-        self.course_df = pd.read_csv(f"{data_folder}/{self.file_name}/course_data.csv")
+        self.course_df = pd.read_csv(f"{self.data_folder}/{self.file_name}/course_data.csv")
         self.courseList = self.course_df['courseId'].to_numpy()
         self.numCourses = len(self.courseList)
         self.courseIndex = {course: idx for idx, course in enumerate(self.courseList)}
@@ -64,13 +65,13 @@ class Instance():
         self.c_r_feasible = self.create_c_r_feasibility().astype(int)
         
     def get_dates(self):
-        self.date_df = pd.read_csv(f"{data_folder}/{self.file_name}/dates.csv")
+        self.date_df = pd.read_csv(f"{self.data_folder}/{self.file_name}/dates.csv")
         self.dateList = self.date_df['Date'].to_numpy()
         self.tDayList = self.date_df['T-Day'].to_numpy()
         self.numDays = len(self.dateList)
         
     def get_times(self):
-        self.time_df = pd.read_csv(f"{data_folder}/{self.file_name}/times.csv")
+        self.time_df = pd.read_csv(f"{self.data_folder}/{self.file_name}/times.csv")
         self.timeList = self.time_df['Time'].to_numpy()
         self.numTime = len(self.timeList)
         self.dateTimeList = np.array([date + 'T' + time for date in self.dateList for time in self.timeList])
@@ -78,11 +79,11 @@ class Instance():
         self.datetime_tday = {self.dateTimeList[i]:self.tDayList[i//self.numTime] for i in range(self.numDateTime)}
         
     def get_datetime_preference(self):
-        self.datetime_preference_df = pd.read_csv(f"{data_folder}/{self.file_name}/datetime_preference.csv")
+        self.datetime_preference_df = pd.read_csv(f"{self.data_folder}/{self.file_name}/datetime_preference.csv")
         self.d_pref_matrix = self.datetime_preference_df.drop(['courseId'], axis=1).to_numpy(int)              
         
     def get_student_data(self):
-        self.student_df = pd.read_csv(f"{data_folder}/{self.file_name}/student_data.csv")
+        self.student_df = pd.read_csv(f"{self.data_folder}/{self.file_name}/student_data.csv")
         self.studentList = self.student_df['rollNum'].to_numpy()
         self.student_df.set_index('rollNum', inplace=True)
         self.numStudents = len(self.studentList)
@@ -361,7 +362,7 @@ def repair(input_solution, feasible_solutions, curr_depth=0, verbose=False, best
     return input_solution
 
 criteria = lambda sol : sol.soft_penalty 
-def genetic_algorithm(instance, initial_population, generations, pop_size, pool_size):
+def genetic_algorithm(instance, initial_population, generations=100, pop_size=100, pool_size=50):
     population = initial_population
     
     # Parameters
